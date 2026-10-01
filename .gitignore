@@ -1,0 +1,20 @@
+# weights live on Hugging Face
+*.gguf
+*.calibration.json
+models/
+models.json
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+
+# os/editor
+.DS_Store
+.idea/
+.vscode/

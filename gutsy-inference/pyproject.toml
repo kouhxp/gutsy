@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gutsy-inference"
+version = "0.3.0"
+description = "Local, calibrated decision-model runtime with a Jev-style Decisions API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "llama-cpp-python>=0.3.35",   # must bundle a llama.cpp that supports the qwen35 architecture
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+gutsy-inference = "gutsy_inference.cli:main"
+
+[tool.setuptools]
+packages = ["gutsy_inference"]
