@@ -15,12 +15,19 @@ Needs llama-cpp-python 0.3.35 or newer (older builds don't know the `qwen35` arc
 
 Put the model and its calibration file in `models/` and copy the example config:
 
-    models/gutsy-0.8b-v03-q8_0.gguf
-    models/gutsy-0.8b-v03.calibration.json
+    models/gutsy-0.8b-v04-q8_0.gguf
+    models/gutsy-0.8b-v04.calibration.json
+
+and, for the smaller Q4_K_M file (optional):
+
+    models/gutsy-0.8b-v04-q4_k_m.gguf
+    models/gutsy-0.8b-v04-q4_k_m.calibration.json
 
     cp models.example.json models.json
 
-Both files are in the Hugging Face repository `kouhxp/gutsy`. Check that the model loads and that
+All four files are in the Hugging Face repository `kouhxp/gutsy`
+(`hf download kouhxp/gutsy --include "gutsy-0.8b-v04*" --local-dir models`). If you keep only one
+pair, delete the other entry from `models.json`. Check that the model loads and that
 state caching works on your machine:
 
     gutsy-inference check
@@ -33,7 +40,7 @@ re-encodes the whole state (slower).
     gutsy-inference serve                       # http://127.0.0.1:8765
 
     curl -s http://127.0.0.1:8765/v1/systemone -H 'Content-Type: application/json' -d '{
-      "model": "gutsy-0.8b-v03",
+      "model": "gutsy-0.8b-v04",
       "state": "Order 1182 shipped Monday. The customer says it arrived Thursday with the box crushed.",
       "questions": {
         "damaged": {"type": "noul", "instructions": "Was the order damaged?"},
@@ -44,7 +51,7 @@ re-encodes the whole state (slower).
 
 Response (numbers illustrative):
 
-    {"model": "gutsy-0.8b-v03",
+    {"model": "gutsy-0.8b-v04",
      "answers": {
        "damaged": {"type": "noul", "noul": 0.97},
        "next": {"type": "choice", "choice": "replace",
@@ -58,6 +65,12 @@ Other commands:
     gutsy-inference decide request.json            # one request, no server
     gutsy-inference bench                          # CPU latency by state length
     gutsy-inference serve --api-key-env GUTSY_KEY  # require a bearer token
+    gutsy-inference serve --cors                   # allow browser pages to call it (examples/)
+
+## Examples
+
+[`examples/`](examples/) has four self-contained browser demos (feedback sheet, model router,
+fact check, live call radar) that call a local server started with `--cors`.
 
 ## API
 
@@ -125,8 +138,9 @@ model in `models.json` to refuse lists longer than 16 instead.
 |---|---|
 | `gguf` | path to the model file |
 | `calibration` | path to its calibration file (temperatures per question type) |
-| `n_ctx` | context window in tokens (8192 for gutsy-0.8b-v03) |
-| `reject_slot` | `true` for models trained with the reject slot (gutsy-0.8b-v03 is) |
+| `n_ctx` | context window in tokens (8192 for gutsy-0.8b v0.4) |
+| `reject_slot` | `true` for models trained with the reject slot (both v0.4 files are) |
+| `cache_tol` | largest cached-vs-full probability difference the startup check accepts before turning caching off (default 0.001; 0.02 for the Q4_K_M file) |
 | `shortlist` | answer choice lists longer than 16 by shortlisting (default `true`) |
 | `max_options` | options per model call, if lower than 16 |
 

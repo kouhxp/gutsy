@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live call radar | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #1d120d;
+  --surface: #2b1b14;
+  --line: #4a3126;
+  --ink: #f6e6d4;
+  --muted: #b89a85;
+  --amber: #ffb547;
+  --objection: #ff6b4a;
+  --competitor: #c59bff;
+  --commitment: #74e0a4;
+  --confusion: #59c3f0;
+  --font: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); display: grid; grid-template-rows: auto auto auto 1fr; }
+header { display: flex; align-items: baseline; gap: 14px; padding: 14px 24px 6px; }
+header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status[data-state="ok"]::before { background: var(--commitment); }
+.status[data-state="down"]::before { background: var(--objection); }
+.status code, .err code { color: var(--ink); }
+
+.controls { display: flex; align-items: center; gap: 10px; padding: 6px 24px 10px; flex-wrap: wrap; }
+.play {
+  font: 700 15px var(--font); background: var(--amber); color: var(--bg); border: 0; border-radius: 999px;
+  padding: 8px 20px; cursor: pointer; min-width: 92px;
+}
+.ghost { font: 500 14px var(--font); background: none; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.speed { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.speed button { font: 500 13px var(--font); background: none; color: var(--muted); border: 0; padding: 7px 12px; cursor: pointer; }
+.speed button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.clock { font-variant-numeric: tabular-nums; font-size: 15px; margin-left: 6px; }
+.clock span { color: var(--muted); }
+.reading { color: var(--muted); font-size: 13px; display: none; align-items: center; gap: 8px; }
+.reading.on { display: flex; }
+.reading i { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); animation: pulse 0.9s infinite; }
+@keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+.err { color: var(--objection); font-size: 13px; }
+
+.timeline { padding: 0 24px 12px; }
+.timeline svg { width: 100%; height: 142px; display: block; background: var(--surface); border-radius: 8px; }
+.lane-label { fill: var(--muted); font: 500 11.5px var(--font); }
+.marker { cursor: default; }
+
+main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 20px; padding: 0 24px 20px; min-height: 0; }
+.panel-title { font-size: 13px; color: var(--muted); margin: 0 0 8px; font-weight: 500; }
+.transcript, .cards { overflow-y: auto; min-height: 0; }
+.turn { display: grid; grid-template-columns: 44px 1fr; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.turn time { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 2px; }
+.turn .who { font-weight: 600; font-size: 13px; }
+.turn.rep .who { color: var(--amber); }
+.turn .txt { grid-column: 2; }
+.turn.live .txt::after { content: "▍"; color: var(--amber); animation: pulse 0.8s infinite; }
+.tags { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 12px; border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; }
+.empty { color: var(--muted); padding: 30px 0; }
+
+.card {
+  background: var(--surface); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
+  border-left: 4px solid var(--c); animation: drop .35s ease-out;
+}
+@keyframes drop { from { transform: translateY(-8px); opacity: 0; } }
+.card h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
+.card h3 em { font-style: normal; color: var(--c); }
+.card h3 time { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.card p { margin: 6px 0 0; color: var(--ink); }
+.card .why { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; } .reading i, .turn.live .txt::after { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Live call radar</h1>
+  <p>Quillstack sales call with Corbel Freight. Triggers fire while the call is happening, not in tomorrow's summary.</p>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<div class="controls">
+  <button class="play" id="play">Play call</button>
+  <button class="ghost" id="restart">Restart</button>
+  <div class="speed" role="group" aria-label="Playback speed">
+    <button data-speed="1" aria-pressed="true">1x</button>
+    <button data-speed="2" aria-pressed="false">2x</button>
+    <button data-speed="4" aria-pressed="false">4x</button>
+  </div>
+  <div class="clock" id="clock">0:00 <span>/ 3:50</span></div>
+  <div class="reading" id="reading"><i></i>gutsy is reading the last turn</div>
+  <div class="err" id="err"></div>
+</div>
+<div class="timeline"><svg id="tl" aria-label="Call timeline with trigger markers"></svg></div>
+<main>
+  <section class="transcript" id="transcript">
+    <p class="panel-title">Transcript</p>
+    <div id="turns"><p class="empty">Press Play call. The transcript streams in as if live, and gutsy checks each turn as soon as it ends.</p></div>
+  </section>
+  <section class="cards">
+    <p class="panel-title">Suggested for Maya (rep)</p>
+    <div id="cards"></div>
+  </section>
+</main>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+// ---- the call (start time in seconds, speaker, text) ----
+const REP = "Maya", CUSTOMER = "Dan", END = 230;
+const CALL = [
+  [0,   REP, "Thanks for making time, Dan. Last week you said your dispatch reports take two days to build. Is that still the main pain?"],
+  [9,   CUSTOMER, "Yeah. Every Monday my team pulls data from four systems into spreadsheets. By the time the report's done, the week's half over."],
+  [19,  REP, "That's exactly what Quillstack is for. We connect to your TMS, the telematics feed and your billing system, and the dashboards refresh every fifteen minutes."],
+  [31,  CUSTOMER, "Okay. Which TMS do you connect to? We're on a pretty old version of Freightmaster."],
+  [38,  REP, "We have a native connector for Freightmaster 9 and up. For older versions we ingest from a database replica and run a schema mapping step."],
+  [50,  CUSTOMER, "Sorry, a replica of what exactly? Would my IT guy have to set that up? I'm not sure I follow the mapping part."],
+  [58,  REP, "Fair question. Our onboarding team does the mapping. Your IT just gives us read access to a copy of the database."],
+  [68,  CUSTOMER, "Hm. So read access to a copy, and you do the rest... and the telematics too? That's a different vendor, it's an API or a file drop, I honestly don't know which."],
+  [80,  REP, "Telematics usually comes in through the vendor's API. Who's your provider?"],
+  [85,  CUSTOMER, "Trakline. But look, before we go further: we're already talking to Loomwell. They demoed last month, and their price was a lot lower than what you sent over."],
+  [99,  REP, "Glad you told me. Loomwell is solid for standard dashboards. Can I ask what their quote covered?"],
+  [106, CUSTOMER, "Dashboards and three connectors, about forty thousand a year. Yours was sixty-two. That's a big gap for a company our size."],
+  [118, REP, "Understood. Our quote includes the Freightmaster replica work and unlimited connectors, which are extras with Loomwell. But let's make sure the value is there before we talk numbers."],
+  [130, CUSTOMER, "Sure. And honestly, even if I love it, I can't sign anything over fifty thousand without our CFO, Rachel. She's very skeptical of new software right now."],
+  [142, REP, "That's helpful. What would Rachel need to see?"],
+  [147, CUSTOMER, "Hard numbers. How many hours we save, and when it pays for itself. She got burned by a BI tool two years ago that nobody used."],
+  [158, REP, "Then here's a thought: a four-week pilot on just the dispatch report, with your real data. We measure the hours saved and you bring Rachel the results."],
+  [170, CUSTOMER, "A pilot could work. Is it paid?"],
+  [174, REP, "It's free if we agree on success criteria up front. I'll send you a one-page pilot plan with those criteria by Friday."],
+  [185, CUSTOMER, "Okay. Send it over and I'll get Rachel on a call next Thursday at two to go through it."],
+  [193, REP, "Perfect. I'll also bring a line-by-line comparison with the Loomwell quote, so she sees the full cost."],
+  [202, CUSTOMER, "Great. One more thing: our data stays on-prem. Does any of this leave our network? Security will ask."],
+  [211, REP, "It's encrypted in transit and at rest, and we're SOC 2 Type II. I'll include our security pack with the pilot plan."],
+  [221, CUSTOMER, "Good. Then I think we have a plan. Thursday at two."]
+];
+
+// ---- gutsy questions ----
+const OBJECTION_TYPES = {
+  price: "price or budget",
+  competitor: "already using or evaluating another product",
+  authority: "needs someone else's approval to buy",
+  timing: "not the right time",
+  need: "not sure they need it, or that it fits",
+  security: "security, privacy or compliance worry",
+  effort: "too much work to set up or switch"
+};
+const COMPETITORS = ["Loomwell", "Snowdrift", "Ardent", "an in-house tool", "another vendor"];
+const CONFUSION_LEVELS = ["not confused", "a little unsure", "clearly confused", "lost"];
+
+function questionsFor(speaker) {
+  const q = {
+    commitment: { type: "noul", instructions: "In the latest turn, does the speaker commit to a concrete next step (an action, a deadline or a meeting)?" }
+  };
+  if (speaker !== CUSTOMER) return q;
+  return Object.assign(q, {
+    objection: { type: "noul", instructions: "In the latest turn, does the customer raise an objection or a reason not to buy?" },
+    objection_type: { type: "choice", instructions: "What kind of objection does the customer raise in the latest turn?", criteria: OBJECTION_TYPES },
+    competitor: { type: "noul", instructions: "In the latest turn, does the customer name a competing product or vendor?" },
+    competitor_name: { type: "choice", instructions: "Which competitor does the customer name in the latest turn?", criteria: COMPETITORS },
+    confusion: { type: "score", instructions: "Based on the whole call so far, how confused is the customer right now?", criteria: CONFUSION_LEVELS }
+  });
+}
+
+// ---- suggested cards (canned playbook, picked by gutsy's answers) ----
+const OBJECTION_CARDS = {
+  price: "Anchor on total cost, not list price. Quillstack includes legacy TMS replication and unlimited connectors. Ask what two days of manual reporting a week costs them in a year.",
+  competitor: "Don't knock the incumbent. Ask what they like about it and what it can't do today, then focus there.",
+  authority: "Bring the decision maker in early. Offer to build the business case together: hours saved, payback period, and a joint call.",
+  timing: "Ask what would have to be true for this to be a priority this quarter. Offer a small pilot that fits current workload.",
+  need: "Go back to the pain. Ask them to quantify it: hours, delays, missed decisions.",
+  security: "Send the security pack: SOC 2 Type II, encryption in transit and at rest, read-only access. Offer a call with our security engineer.",
+  effort: "Make setup our problem: onboarding team does connectors and mapping. Share a typical week-by-week rollout."
+};
+const BATTLECARDS = {
+  "Loomwell": "Lower list price, but only three connectors included and no support for Freightmaster below version 9. Ask which connectors their quote covers.",
+  "Snowdrift": "Strong warehouse, weak on logistics connectors. Ask who would build and maintain the pipelines.",
+  "Ardent": "Enterprise pricing and six-month rollouts. Contrast with a four-week pilot.",
+  "an in-house tool": "Ask who maintains it and what happens when that person is out. Position as a replacement for the Monday scramble, not for their team.",
+  "another vendor": "Ask what they're evaluating and what made them start looking."
+};
+
+const KINDS = {
+  objection: { label: "Objection", color: "var(--objection)", lane: 0 },
+  competitor: { label: "Competitor", color: "var(--competitor)", lane: 1 },
+  commitment: { label: "Commitment", color: "var(--commitment)", lane: 2 },
+  confusion: { label: "Confusion", color: "var(--confusion)", lane: 3 }
+};
+const FIRE = 0.6;
+
+// ---- timeline ----
+const tl = document.getElementById("tl");
+const L = { x0: 110, x1: 985, top: 10, lane: 28, h: 142 };
+const xOf = t => L.x0 + (L.x1 - L.x0) * t / END;
+const yOf = lane => L.top + lane * L.lane + L.lane / 2;
+let markers = [], confusionData = [], playheadT = 0;
+
+function drawTimeline() {
+  // viewBox matches the rendered pixel size, so text and dots are never stretched
+  const w = Math.max(400, Math.round(tl.getBoundingClientRect().width));
+  tl.setAttribute("viewBox", `0 0 ${w} ${L.h}`);
+  L.x1 = w - 18;
+  let svg = "";
+  Object.values(KINDS).forEach(k => {
+    const y = yOf(k.lane);
+    svg += `<text class="lane-label" x="14" y="${y + 4}">${k.label}</text>
+      <line x1="${L.x0}" x2="${L.x1}" y1="${y}" y2="${y}" stroke="#4a3126" stroke-dasharray="2 4"/>`;
+  });
+  for (let t = 0; t <= END; t += 30) {
+    svg += `<text class="lane-label" x="${xOf(t)}" y="${L.h - 6}" text-anchor="middle" opacity=".7">${fmt(t)}</text>`;
+  }
+  const k = KINDS.confusion, yTop = L.top + k.lane * L.lane + 3, yBot = L.top + (k.lane + 1) * L.lane - 3;
+  if (confusionData.length) {
+    const d = confusionData.map(([t, e], i) => `${i ? "L" : "M"}${xOf(t)} ${yBot - (yBot - yTop) * e / 3}`).join(" ");
+    svg += `<path d="${d}" fill="none" stroke="var(--confusion)" stroke-width="2" opacity=".55"/>`;
+  }
+  markers.forEach(m => { svg += markerSvg(m, false); });
+  svg += `<line id="playhead" y1="4" y2="${L.top + 4 * L.lane + 2}" stroke="var(--amber)" stroke-width="2"/>`;
+  tl.innerHTML = svg;
+  movePlayhead(playheadT);
+}
+function markerSvg({ kind, t, label }, fresh) {
+  const k = KINDS[kind], x = xOf(t), y = yOf(k.lane);
+  const ripple = fresh ? `<circle cx="${x}" cy="${y}" r="7" fill="${k.color}" opacity="0">
+      <animate attributeName="r" from="7" to="17" dur=".6s" fill="freeze"/>
+      <animate attributeName="opacity" from=".6" to="0" dur=".6s" fill="freeze"/></circle>` : "";
+  return `<g class="marker"><title>${fmt(t)} ${k.label}: ${label}</title>${ripple}
+    <circle cx="${x}" cy="${y}" r="6" fill="${k.color}"/></g>`;
+}
+function movePlayhead(t) {
+  playheadT = t;
+  const ph = document.getElementById("playhead");
+  if (ph) { ph.setAttribute("x1", xOf(t)); ph.setAttribute("x2", xOf(t)); }
+  document.getElementById("clock").innerHTML = `${fmt(t)} <span>/ ${fmt(END)}</span>`;
+}
+function addMarker(kind, t, label) {
+  const m = { kind, t, label };
+  markers.push(m);
+  document.getElementById("playhead").insertAdjacentHTML("beforebegin", markerSvg(m, true));
+}
+function plotConfusion(t, expected) {
+  confusionData.push([t, expected]);
+  drawTimeline();
+}
+window.addEventListener("resize", drawTimeline);
+const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+// ---- playback ----
+let speed = 1, playing = false, run = 0, idx = 0, clockT = 0, lastConfusion = 0;
+const turnsEl = document.getElementById("turns"), cardsEl = document.getElementById("cards");
+const playBtn = document.getElementById("play"), reading = document.getElementById("reading");
+const errEl = document.getElementById("err");
+
+document.querySelectorAll(".speed button").forEach(b => b.addEventListener("click", () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll(".speed button").forEach(x => x.setAttribute("aria-pressed", x === b));
+}));
+playBtn.addEventListener("click", () => playing ? pause() : play());
+document.getElementById("restart").addEventListener("click", reset);
+
+function reset() {
+  run++; playing = false; idx = 0; clockT = 0; lastConfusion = 0;
+  playBtn.textContent = "Play call"; reading.classList.remove("on"); errEl.textContent = "";
+  turnsEl.innerHTML = ""; cardsEl.innerHTML = "";
+  markers = []; confusionData = []; playheadT = 0;
+  drawTimeline();
+}
+function pause() { playing = false; playBtn.textContent = "Resume"; }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitWhilePaused(myRun) { while (!playing && myRun === run) await sleep(80); }
+
+async function play() {
+  if (idx >= CALL.length) reset();
+  playing = true; playBtn.textContent = "Pause";
+  if (turnsEl.querySelector(".empty")) turnsEl.innerHTML = "";
+  const myRun = run;
+  if (play.active === myRun) return;   // loop already running for this run; it resumes on its own
+  play.active = myRun;
+  while (idx < CALL.length && myRun === run) {
+    await waitWhilePaused(myRun);
+    if (myRun !== run) return;
+    const [start, who, text] = CALL[idx];
+    const end = idx + 1 < CALL.length ? CALL[idx + 1][0] : END;
+    const el = addTurn(start, who);
+    // stream words across the turn's duration
+    const words = text.split(" ");
+    const stepMs = (end - start) * 1000 / words.length;
+    for (let w = 0; w < words.length; w++) {
+      await waitWhilePaused(myRun);
+      if (myRun !== run) return;
+      el.txt.textContent += (w ? " " : "") + words[w];
+      clockT = start + (end - start) * (w + 1) / words.length;
+      movePlayhead(clockT);
+      scrollDown(el.root);
+      await sleep(stepMs / speed);
+    }
+    el.root.classList.remove("live");
+    // the turn is over: ask gutsy before the call moves on
+    reading.classList.add("on");
+    const ok = await analyze(idx, el, myRun);
+    reading.classList.remove("on");
+    if (myRun !== run) return;
+    if (!ok) { pause(); playBtn.textContent = "Retry"; el.root.remove(); continue; }
+    idx++;
+  }
+  if (myRun === run) { playing = false; playBtn.textContent = "Replay"; play.active = null; }
+}
+
+function addTurn(t, who) {
+  const root = document.createElement("div");
+  root.className = "turn live " + (who === REP ? "rep" : "customer");
+  root.innerHTML = `<time>${fmt(t)}</time><div class="who">${who === REP ? "Maya, Quillstack" : "Dan, Corbel Freight"}</div>
+    <div class="txt"></div><div class="tags"></div>`;
+  turnsEl.appendChild(root);
+  return { root, txt: root.querySelector(".txt"), tags: root.querySelector(".tags") };
+}
+function scrollDown(node) {
+  const box = document.getElementById("transcript");
+  box.scrollTop = box.scrollHeight;
+}
+
+async function analyze(i, el, myRun) {
+  const [t, who, text] = CALL[i];
+  const name = w => w === REP ? "Maya (rep)" : "Dan (customer)";
+  const state = {
+    call: "Sales call. Maya sells Quillstack, a reporting platform. Dan runs operations at Corbel Freight.",
+    earlier_turns: CALL.slice(0, i).map(([, w, x]) => `${name(w)}: ${x}`),
+    latest_turn: `${name(who)}: ${text}`
+  };
+  let res;
+  try {
+    res = await gutsy(state, questionsFor(who));
+    errEl.textContent = "";
+  } catch (e) {
+    errEl.innerHTML = e instanceof TypeError
+      ? "Couldn't reach gutsy. Run <code>gutsy-inference serve --cors</code>, then press Retry."
+      : "gutsy returned an error: " + e.message.replace(/</g, "&lt;");
+    checkGutsy();
+    return false;
+  }
+  if (myRun !== run) return true;
+  const a = res.answers, at = t + (CALL[i + 1] ? CALL[i + 1][0] - t : END - t);
+  const tag = (kind, label) => el.tags.insertAdjacentHTML("beforeend",
+    `<span class="tag" style="color:${KINDS[kind].color}">${label}</span>`);
+
+  if (a.objection && a.objection.noul >= FIRE) {
+    const type = a.objection_type.choice;
+    addMarker("objection", at, type); tag("objection", "objection: " + type);
+    card("objection", "Objection", type, at, OBJECTION_CARDS[type],
+      `objection ${a.objection.noul.toFixed(2)}, ${type} ${a.objection_type.probabilities[type].toFixed(2)}`);
+  }
+  if (a.competitor && a.competitor.noul >= FIRE) {
+    const c = a.competitor_name.choice;
+    addMarker("competitor", at, c); tag("competitor", "competitor: " + c);
+    card("competitor", "Competitor named", c, at, BATTLECARDS[c],
+      `competitor ${a.competitor.noul.toFixed(2)}, ${c} ${a.competitor_name.probabilities[c].toFixed(2)}`);
+  }
+  if (a.commitment.noul >= FIRE) {
+    const by = who === REP ? "Maya" : "Dan";
+    addMarker("commitment", at, by); tag("commitment", "commitment");
+    card("commitment", "Commitment made", "by " + by, at,
+      `Logged as a next step: "${text.length > 110 ? text.slice(0, 108) + "…" : text}"`,
+      `commitment ${a.commitment.noul.toFixed(2)}`);
+  }
+  if (a.confusion) {
+    const e = a.confusion.expected;
+    plotConfusion(at, e);
+    if (e >= 1 && e - lastConfusion >= 0.3) {
+      addMarker("confusion", at, "rising"); tag("confusion", "confusion rising");
+      card("confusion", "Customer confusion rising", CONFUSION_LEVELS[+a.confusion.level], at,
+        "Pause the pitch. Say in one plain sentence what they would have to do, then ask what's unclear. Drop the jargon.",
+        `confusion ${lastConfusion.toFixed(2)} to ${e.toFixed(2)} on a 0-3 scale`);
+    }
+    lastConfusion = e;
+  }
+  return true;
+}
+
+function card(kind, title, detail, t, body, why) {
+  const d = document.createElement("div");
+  d.className = "card"; d.style.setProperty("--c", KINDS[kind].color);
+  d.innerHTML = `<h3><span>${title}</span><em></em><time>${fmt(t)}</time></h3><p></p><div class="why">gutsy: ${why}</div>`;
+  d.querySelector("em").textContent = detail;
+  d.querySelector("p").textContent = body;
+  cardsEl.prepend(d);
+}
+
+drawTimeline();
+checkGutsy();
+</script>
+</body>
+</html>

@@ -11,14 +11,14 @@ from .fakes import FakeBackend
 from .test_engine import BODY
 
 
-def _start(tmp, api_key=None):
+def _start(tmp, api_key=None, cors=False):
     cfg = tmp / "models.json"
     (tmp / "cal.json").write_text(json.dumps({"temperatures": {"yes_no": 1.3, "choice": 1.1}}))
     cfg.write_text(json.dumps({"default": "gutsy-0.8b", "models": {
         "gutsy-0.8b": {"gguf": "a.gguf", "calibration": "cal.json"},
         "gutsy-2b": {"gguf": "b.gguf", "calibration": "cal.json"}}}))
     reg = Registry(cfg, backend_factory=lambda spec: FakeBackend())
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(reg, api_key, quiet=True))
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(reg, api_key, quiet=True, cors=cors))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -61,3 +61,22 @@ def test_http_auth(tmp_path):
         assert _call(base + "/v1/decisions", BODY, key="secret")[0] == 200
     finally:
         httpd.shutdown()
+
+
+def test_http_cors(tmp_path):
+    for cors in (False, True):
+        httpd, base = _start(tmp_path, cors=cors)
+        try:
+            pre = urllib.request.Request(base + "/v1/systemone", method="OPTIONS")
+            try:
+                with urllib.request.urlopen(pre) as r:
+                    code, allow = r.status, r.headers.get("Access-Control-Allow-Origin")
+            except urllib.error.HTTPError as e:
+                code, allow = e.code, e.headers.get("Access-Control-Allow-Origin")
+            assert (code, allow) == ((204, "*") if cors else (405, None))
+            req = urllib.request.Request(base + "/v1/systemone", data=json.dumps(BODY).encode(),
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req) as r:
+                assert r.headers.get("Access-Control-Allow-Origin") == ("*" if cors else None)
+        finally:
+            httpd.shutdown()

@@ -6,6 +6,8 @@
   GET  /v1/models             available models
   GET  /health                status, self-check results
 Inference is serialized per model (one llama.cpp context each); requests queue on a lock.
+With cors=True (`serve --cors`), responses allow any origin, so browser pages such as the
+examples/ demos can call the server. Off by default: any site you visit could otherwise query it.
 """
 import json
 import sys
@@ -23,7 +25,7 @@ DECISION_PATHS = {"/api/alpha/decisions", "/v1/decisions", "/v1/systemone"}
 LENIENT_MODEL_PATHS = {"/v1/systemone"}
 
 
-def make_handler(registry, api_key=None, quiet=False):
+def make_handler(registry, api_key=None, quiet=False, cors=False):
     class Handler(BaseHTTPRequestHandler):
         server_version = f"gutsy-inference/{__version__}"
 
@@ -32,8 +34,25 @@ def make_handler(registry, api_key=None, quiet=False):
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
+            self._cors_headers()
             self.end_headers()
             self.wfile.write(data)
+
+        def _cors_headers(self):
+            if cors:
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                # Chrome's Private Network Access: lets a page (or a file:// page) reach localhost
+                self.send_header("Access-Control-Allow-Private-Network", "true")
+
+        def do_OPTIONS(self):
+            if not cors:
+                return self._error(405, "CORS is off; start the server with --cors")
+            self.send_response(204)
+            self._cors_headers()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def _error(self, code, msg, etype="invalid_request_error"):
             self._send(code, {"error": {"message": msg, "type": etype, "code": code}})
@@ -85,14 +104,16 @@ def make_handler(registry, api_key=None, quiet=False):
     return Handler
 
 
-def serve(registry, host="127.0.0.1", port=8765, api_key=None, preload=True, quiet=False):
+def serve(registry, host="127.0.0.1", port=8765, api_key=None, preload=True, quiet=False,
+          cors=False):
     if preload:
         for n in registry.names():
             e = registry.get(n)
             print(f"loaded {n}: {e.self_check_result}; temperatures {e.calibration.temperatures}",
                   flush=True)
-    httpd = ThreadingHTTPServer((host, port), make_handler(registry, api_key, quiet))
-    print(f"gutsy-inference {__version__} listening on http://{host}:{port}", flush=True)
+    httpd = ThreadingHTTPServer((host, port), make_handler(registry, api_key, quiet, cors))
+    print(f"gutsy-inference {__version__} listening on http://{host}:{port}"
+          + (" (CORS on)" if cors else ""), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

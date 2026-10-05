@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fact check an answer | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #dbe3ee;
+  --page: #f8fafd;
+  --ink: #13223a;
+  --muted: #5a6b85;
+  --line: #c3cfdf;
+  --cobalt: #2b55d6;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "Hanken Grotesk", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); display: grid; grid-template-rows: auto 1fr; }
+header { display: flex; align-items: center; gap: 14px; padding: 14px 24px; }
+header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status[data-state="ok"]::before { background: #2e9e5b; }
+.status[data-state="down"]::before { background: #d2452f; }
+main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; padding: 0 24px 20px; min-height: 0; }
+
+/* source */
+.doc { background: var(--page); border: 1px solid var(--line); border-radius: 4px; overflow-y: auto; padding: 28px 36px 40px 52px; min-height: 0; scroll-behavior: smooth; }
+.doc .kind { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; }
+.doc h2 { font: 600 26px/1.2 var(--serif); margin: 0 0 4px; letter-spacing: -0.01em; }
+.doc .by { color: var(--muted); font: italic 15px var(--serif); margin: 0 0 18px; }
+.doc h3 { font: 600 13px var(--sans); color: var(--muted); margin: 22px 0 6px; }
+.doc p.para {
+  font: 16.5px/1.62 var(--serif); margin: 0 0 12px; max-width: 68ch; position: relative;
+  padding-left: 14px; margin-left: -14px; border-left: 3px solid transparent; transition: background-color .4s, border-color .4s;
+}
+.doc p.para .pn { position: absolute; left: -26px; top: 3px; font: 600 11px var(--sans); color: #9aa8bd; }
+.doc p.para.lit { background: var(--lit-bg); border-left-color: var(--lit); }
+
+/* answer */
+.side { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+.ask { align-self: flex-end; background: var(--ink); color: #fff; border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 90%; }
+.answer { background: var(--page); border: 1px solid var(--line); border-radius: 4px; padding: 18px 20px; font-size: 15.5px; line-height: 1.75; }
+.answer .who { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.s { border-radius: 3px; padding: 1px 2px; transition: background-color .4s; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.s.pending { background: rgba(43, 85, 214, .1); }
+.s.scored { cursor: pointer; background: var(--bg-s); }
+.s.scored:hover, .s.scored.active { outline: 2px solid var(--fg-s); }
+.badge {
+  display: inline-block; font: 600 11px/1 var(--sans); padding: 3px 5px; border-radius: 3px; margin-left: 3px;
+  background: var(--fg-s); color: #fff; vertical-align: 2px; font-variant-numeric: tabular-nums;
+}
+.link { font: 600 11px var(--sans); color: var(--fg-s); margin-left: 3px; text-decoration: underline; vertical-align: 2px; cursor: pointer; background: none; border: 0; padding: 0; }
+.check {
+  font: 700 19px var(--sans); color: #fff; background: var(--cobalt); border: 0; border-radius: 6px;
+  padding: 18px; cursor: pointer; box-shadow: 0 3px 0 #1c3a98;
+}
+.check:active { transform: translateY(2px); box-shadow: 0 1px 0 #1c3a98; }
+.check:disabled { opacity: .6; cursor: progress; }
+.check:focus-visible, .link:focus-visible, .s:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.summary { display: flex; gap: 16px; align-items: center; font-size: 13.5px; color: var(--muted); flex-wrap: wrap; }
+.summary b { color: var(--ink); }
+.ramp { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ramp i { width: 130px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsl(4 66% 50%), hsl(38 80% 50%), hsl(140 50% 38%)); }
+.err { color: #b3321f; font-size: 13.5px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } .doc { max-height: 55vh; } }
+@media (prefers-reduced-motion: reduce) { .doc { scroll-behavior: auto; } .s, .doc p.para { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fact check an answer against its source</h1>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<main>
+  <article class="doc" id="doc">
+    <p class="kind">Source document</p>
+    <h2>Harrow Bay Tidal Barrier: Annual Operations Review 2025</h2>
+    <p class="by">Harrow Bay Flood Authority, Engineering and Operations Division. Published March 2026.</p>
+    <div id="paras"></div>
+  </article>
+  <section class="side">
+    <div class="ask">How did the Harrow Bay barrier do in 2025, and what happens next?</div>
+    <div class="answer"><div class="who">Assistant</div><div id="answer"></div></div>
+    <button class="check" id="check">Fact check claims</button>
+    <div class="summary" id="summary">
+      <span class="ramp">not supported <i></i> supported</span>
+    </div>
+  </section>
+</main>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+// [section heading or null, short topic (shown to gutsy as the passage label), text]
+const PARAS = [
+  ["Summary", "2025 closures and overall result",
+   "The Harrow Bay Tidal Barrier completed its nineteenth full year of operation in 2025. The barrier was closed 41 times during the year, compared with 29 closures in 2024 and an average of 23 closures a year over the previous decade. Thirty-four of the closures were triggered by forecast surge tides; the remaining seven were scheduled test closures. Every closure was completed within the target window of 75 minutes, and no properties behind the barrier were flooded by tidal water during the year. The Authority considers 2025 the most demanding year of operation since the barrier opened in 2006."],
+  [null, "autumn storms and record water levels",
+   "The increase in closures reflects both higher mean sea levels and an unusually stormy autumn. Between 14 October and 2 December, the barrier closed 17 times, including four closures within a single 60-hour period during Storm Ingrid. The highest water level recorded at the seaward gauge was 4.86 metres above datum on 9 November, the second-highest reading since records began in 1952. The highest reading, 4.91 metres, was recorded during the January 1978 surge, before the barrier existed. Forecasters had predicted a peak of 4.70 metres for 9 November; the difference was caused by a wind shift in the final six hours before high tide."],
+  ["Operations", "how a closure works and how long it took",
+   "Each closure involves lowering six radial steel gates, each 31 metres wide, into the river channel. The gates are driven by hydraulic rams housed in the five concrete piers that separate them. The control room at the north abutment is staffed around the clock, and a closure decision is made jointly by the duty engineer and the forecasting officer once the predicted surge exceeds 0.9 metres above the astronomical tide. In 2025 the average time from closure decision to all gates sealed was 52 minutes. The slowest closure, on 22 November, took 71 minutes because gate 4 had to be lowered manually after a sensor fault."],
+  [null, "gate 4 sensor fault and repair",
+   "The sensor fault on gate 4 was traced to water ingress in a position encoder that had been in service since 2006. All six position encoders were replaced in January 2026 at a cost of £186,000. The Authority notes that the manual lowering procedure worked as designed, and that the fault did not at any point put the closure at risk. Nonetheless, the incident has been logged as the barrier's first unplanned manual intervention since 2014, and the manual procedure will now be rehearsed by every shift team twice a year rather than once."],
+  [null, "disruption to river traffic",
+   "River traffic was suspended during each closure. The Port of Harrow estimates that closures delayed 312 commercial vessel movements over the year, with an average delay of three hours and ten minutes. Two cruise calls were cancelled outright in November. The Port has asked the Authority to give at least 36 hours' notice of planned test closures, and from 2026 test closures will be scheduled at neap tides on weekday mornings to reduce disruption. Recreational moorings upstream of the barrier were not affected, as closures do not change water levels on the landward side by more than a few centimetres."],
+  [null, "staffing and overtime",
+   "The barrier is operated by a team of 64 staff: 22 control room operators working in four shifts, 30 maintenance engineers and technicians, six forecasters and six support staff. Staff turnover was 7 per cent in 2025, below the Authority's average. Two experienced operators retired in the summer, and the Authority recruited four apprentices through its partnership with Harrow College. The autumn closures required 3,100 hours of overtime, almost twice the figure for 2024. The Authority has warned that if closures keep rising at the current rate, it will need to move the control room to five shifts by 2028, adding around eight posts."],
+  ["Condition and maintenance", "2025 structural inspection",
+   "The barrier's structural condition was assessed in a five-yearly principal inspection completed in June 2025. Inspectors rated the concrete piers and abutments as good, with minor surface cracking on pier 2 that does not affect strength. The gates themselves were rated fair: corrosion protection on the downstream faces of gates 1, 2 and 6 has deteriorated faster than expected, and recoating is recommended within four years. The hydraulic system was rated good, although several seals are approaching the end of their design life and should be replaced during the next scheduled overhaul."],
+  [null, "maintenance and operating costs",
+   "Routine maintenance cost £3.9 million in 2025, up from £3.4 million in 2024. Most of the increase came from additional overtime during the autumn closures and from bringing forward the replacement of two hydraulic pumps that had been planned for 2027. The Authority's total operating budget for the barrier, including staffing, maintenance, insurance and energy, was £11.2 million. Energy costs fell slightly despite the higher number of closures, because the pumping station switched to a renewable electricity contract in March."],
+  ["Future capacity", "sea-level projections and remaining life",
+   "When the barrier was designed in the 1990s, engineers assumed it would close about 10 times a year by 2030 and remain effective until 2060. Updated sea-level projections published by the national climate service in 2024 suggest that, under the central scenario, the barrier could need to close more than 60 times a year by 2045. At that frequency, the time available for maintenance between closures becomes too short, and the risk of a gate failing to close rises sharply. The Authority's modelling indicates that the barrier, in its current form, will reach the end of its reliable operating life between 2050 and 2055 rather than 2060."],
+  [null, "the three options and their costs",
+   "The Authority has considered three options. Option A keeps the existing barrier and raises flood walls behind it by up to 1.2 metres along 14 kilometres of riverbank, at an estimated cost of £640 million. Option B adds a seventh gate and raises the existing gates by 1.5 metres, at an estimated cost of £1.1 billion, extending the barrier's life to around 2085. Option C builds a new barrier 6 kilometres downstream, at an estimated cost of £2.4 billion, with an expected design life to 2120. All three cost estimates are at 2025 prices and include a contingency of 30 per cent."],
+  [null, "board recommendation and timeline",
+   "The Authority's board recommended Option B in February 2026. The board considered Option A cheaper in the short term but noted that it would require the permanent loss of riverside access in four town centres and would only defer the problem. Option C was judged to offer the longest protection but would take at least fifteen years to build and would affect a protected wetland. Option B is expected to take nine years from approval, with construction phased so that the barrier remains operational throughout. No start date has been set, as construction cannot begin until funding is agreed."],
+  ["Funding", "how Option B would be paid for",
+   "The Authority is seeking 70 per cent of the Option B cost from the national flood defence programme. The remaining 30 per cent, about £330 million, would be raised locally through a combination of a levy on the three councils that benefit from the barrier and contributions from the Port of Harrow and the regional water utility. No funding has yet been confirmed. A decision from the national programme is expected in the autumn of 2026, and the three councils have agreed in principle to the levy subject to that decision."],
+  [null, "fallback plan and cost of doing nothing",
+   "If national funding is not approved, the board has said it will revisit Option A as a fallback, possibly combined with a smaller programme of gate reinforcement. The board stressed that doing nothing is not an option: without major works, the Authority estimates that annual expected flood damages in the protected area would rise from around £8 million today to more than £90 million by 2050. Around 46,000 homes and 3,800 businesses lie in the area the barrier protects."],
+  ["Public engagement", "public consultation results",
+   "A public consultation on the three options ran from April to July 2025 and received 2,140 responses. Fifty-eight per cent of respondents preferred Option B, 24 per cent Option C, and 11 per cent Option A; the rest expressed no preference. The most common concern, raised in around a third of responses, was disruption to river traffic during construction. Residents of Saltmarsh Road, closest to the Option C site, submitted a petition with 1,300 signatures opposing it. Several respondents asked for clearer information about how closures are decided, which the Authority has committed to provide. Business groups in the town centres were broadly supportive of Option B but asked for guarantees that riverside roads would stay open during the main construction phases, particularly in the summer tourist season."],
+  [null, "next steps for 2026",
+   "The Authority will publish a detailed design brief for Option B in mid-2026 and hold a second round of consultation on the construction plan. In the meantime, it will continue to operate the barrier under the current closure rules, review those rules to reduce unnecessary closures where forecasts allow, and publish closure data monthly on its website rather than annually. The next principal inspection is due in 2030, with an interim inspection of the gate coatings in 2027. A summary of this review, written for residents, will be posted to every household in the protected area in April."]
+];
+
+// The answer an LLM gave, one sentence per entry (some claims are wrong on purpose).
+const ANSWER = [
+  "The Harrow Bay barrier closed 41 times in 2025, nearly double its ten-year average, and no homes behind it were flooded by the tide.",
+  "The busiest stretch came during Storm Ingrid, when water at the seaward gauge reached 4.91 metres, the highest level ever recorded there.",
+  "Every closure finished within the 75-minute target, although one took 71 minutes after a sensor fault forced engineers to lower a gate by hand.",
+  "Closures delayed more than 300 ship movements, and the Port of Harrow has asked for 36 hours' notice of test closures.",
+  "Inspectors found the concrete structure in good condition but said the gates need new corrosion protection within four years.",
+  "Rising seas mean the barrier could have to close more than 60 times a year by 2045, so it is now expected to reach the end of its reliable life in the early 2050s.",
+  "The board's preferred plan is to add a seventh gate and raise the existing gates, at a cost of about £1.1 billion.",
+  "Construction is due to start in 2027 and should take nine years.",
+  "The national flood defence programme has already agreed to pay 70 per cent of the cost.",
+  "Most residents who responded to the public consultation backed the board's preferred plan."
+];
+
+const STATE = PARAS.map((p, i) => `[P${i + 1}] ${p[2]}`).join("\n\n");
+const PASSAGES = Object.fromEntries(PARAS.map((p, i) => ["P" + (i + 1), p[1]]));
+
+const parasEl = document.getElementById("paras");
+const paraEls = PARAS.map(([head, , text], i) => {
+  if (head) { const h = document.createElement("h3"); h.textContent = head; parasEl.appendChild(h); }
+  const p = document.createElement("p");
+  p.className = "para"; p.id = "P" + (i + 1);
+  p.innerHTML = `<span class="pn">${i + 1}</span>`;
+  p.append(text);
+  parasEl.appendChild(p);
+  return p;
+});
+
+const answerEl = document.getElementById("answer");
+const sentEls = ANSWER.map(t => {
+  const s = document.createElement("span");
+  s.className = "s"; s.textContent = t;
+  answerEl.append(s, " ");
+  return s;
+});
+
+function colors(p) {
+  const h = p < 0.5 ? 4 + p * 2 * 34 : 38 + (p - 0.5) * 2 * 102;   // red -> amber -> green
+  return { fg: `hsl(${h} ${p < 0.5 ? 66 : 50}% ${p < 0.5 ? 47 : 36}%)`, bg: `hsl(${h} 75% 88%)` };
+}
+
+function focusPassage(s) {
+  document.querySelectorAll(".s.active").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".para.lit").forEach(x => x.classList.remove("lit"));
+  s.classList.add("active");
+  const p = document.getElementById(s.dataset.passage);
+  p.style.setProperty("--lit", s.style.getPropertyValue("--fg-s"));
+  p.style.setProperty("--lit-bg", s.style.getPropertyValue("--bg-s"));
+  p.classList.add("lit");
+  p.scrollIntoView({ block: "center" });
+}
+
+const btn = document.getElementById("check"), summary = document.getElementById("summary");
+btn.addEventListener("click", async () => {
+  btn.disabled = true; btn.textContent = "Checking claims…";
+  const counts = { yes: 0, unclear: 0, no: 0 };
+  let ms = 0, failed = false;
+  sentEls.forEach(s => { s.className = "s pending"; s.querySelectorAll(".badge, .link").forEach(x => x.remove()); });
+  for (const [i, s] of sentEls.entries()) {
+    const claim = ANSWER[i];
+    try {
+      const res = await gutsy(STATE, {
+        supported: { type: "noul",
+          instructions: `Is this claim supported by the document? Claim: "${claim}"`,
+          criteria: { true: "the document states it, or it follows directly from what the document says",
+                      false: "the document contradicts it, or doesn't say it" } },
+        passage: { type: "choice",
+          instructions: `Which passage of the document is most relevant for checking this claim? Claim: "${claim}"`,
+          criteria: PASSAGES }
+      });
+      ms += res.usage ? res.usage.latency_ms : 0;
+      const p = res.answers.supported.noul, where = res.answers.passage.choice, c = colors(p);
+      s.className = "s scored"; s.tabIndex = 0;
+      s.style.setProperty("--fg-s", c.fg); s.style.setProperty("--bg-s", c.bg);
+      s.dataset.passage = where;
+      s.title = `P(supported) = ${p.toFixed(3)}; most relevant passage: ${where}, ${PASSAGES[where]}`;
+      const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = p.toFixed(2);
+      const link = document.createElement("button"); link.className = "link"; link.textContent = "¶" + where.slice(1);
+      link.setAttribute("aria-label", "Show passage " + where.slice(1));
+      s.append(badge, link);
+      s.addEventListener("click", () => focusPassage(s));
+      s.addEventListener("keydown", e => { if (e.key === "Enter") focusPassage(s); });
+      counts[p >= 0.7 ? "yes" : p <= 0.3 ? "no" : "unclear"]++;
+      if (i === 0) focusPassage(s);
+    } catch (e) {
+      failed = true;
+      s.className = "s";
+      summary.innerHTML = e instanceof TypeError
+        ? `<span class="err">Couldn't reach gutsy. Run <code>gutsy-inference serve --cors</code> and try again.</span>`
+        : `<span class="err">gutsy returned an error: ${e.message.replace(/</g, "&lt;")}</span>`;
+      sentEls.forEach(x => x.classList.remove("pending"));
+      checkGutsy();
+      break;
+    }
+  }
+  if (!failed) {
+    summary.innerHTML = `<span><b>${counts.yes}</b> supported</span><span><b>${counts.unclear}</b> unclear</span>` +
+      `<span><b>${counts.no}</b> not supported</span><span>${(ms / 1000).toFixed(1)} s on gutsy</span>` +
+      `<span class="ramp">not supported <i></i> supported</span>`;
+  }
+  btn.disabled = false; btn.textContent = "Fact check claims";
+});
+
+checkGutsy();
+</script>
+</body>
+</html>

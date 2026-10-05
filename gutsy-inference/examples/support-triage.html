@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support ticket triage | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #f1e6f0;
+  --card: #fffafe;
+  --line: #e2cbe0;
+  --ink: #3a1631;
+  --muted: #84607a;
+  --orchid: #b0287a;
+  --orchid-soft: #f3d3e7;
+  --font: "Lexend", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font); }
+header { display: flex; align-items: baseline; gap: 14px; padding: 16px 28px 8px; }
+header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+header p { margin: 0; color: var(--muted); font-weight: 300; }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status[data-state="ok"]::before { background: #2f9e6a; }
+.status[data-state="down"]::before { background: #d23c3c; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding: 8px 28px 28px; max-width: 1240px; }
+
+/* ticket */
+.ticket { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; align-self: start; }
+.ticket .meta { display: grid; grid-template-columns: 70px 1fr; gap: 2px 12px; font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
+.ticket .meta b { color: var(--ink); font-weight: 500; }
+.ticket h2 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
+.ticket .body { font-weight: 300; font-size: 16px; line-height: 1.65; max-width: 62ch; }
+.ticket .body p { margin: 0 0 12px; }
+.triage {
+  margin-top: 10px; width: 100%; font: 600 18px var(--font); color: #fff; background: var(--orchid);
+  border: 0; border-radius: 10px; padding: 16px; cursor: pointer;
+}
+.triage:disabled { opacity: .6; cursor: progress; }
+.triage:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+/* results */
+.results { display: flex; flex-direction: column; gap: 14px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
+.panel h3 { margin: 0; font-size: 14px; font-weight: 500; color: var(--muted); }
+.answer { font-size: 26px; font-weight: 600; margin: 2px 0 10px; min-height: 40px; }
+.answer.wait { color: var(--line); }
+.sub { font-size: 12.5px; color: var(--muted); }
+
+.bars { display: grid; grid-template-columns: 92px 1fr 40px; gap: 7px 10px; align-items: center; font-size: 13.5px; }
+.bars .win { font-weight: 600; }
+.track { height: 10px; border-radius: 5px; background: var(--orchid-soft); overflow: hidden; }
+.fill { height: 100%; width: 0; border-radius: 5px; background: #c9a3bf; transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.fill.win { background: var(--orchid); }
+.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.gauge { position: relative; height: 12px; border-radius: 6px; margin: 4px 0 6px;
+  background: linear-gradient(90deg, #f6dde0 0 15%, #efe4ee 15% 85%, #dbeedf 85% 100%); }
+.gauge .dot { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: var(--orchid); border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--orchid); left: 50%;
+  transition: left .6s cubic-bezier(.2,.8,.2,1); opacity: 0; }
+.gauge-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+.scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.step { border-radius: 8px; padding: 8px 6px 6px; text-align: center; background: var(--orchid-soft); position: relative; overflow: hidden; }
+.step .lvl { position: relative; font-size: 13px; }
+.step .p { position: relative; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.step .bg { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #e3aed0; transition: height .6s; }
+.step.win { outline: 2px solid var(--orchid); }
+.step.win .lvl { font-weight: 600; }
+.err { color: #b3261e; font-size: 14px; }
+.err code { color: var(--ink); }
+@media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .fill, .gauge .dot, .step .bg { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Support ticket triage</h1>
+  <p>One ticket, three questions, one request to gutsy.</p>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<main>
+  <section class="ticket">
+    <div class="meta">
+      <span>Ticket</span><b>#48213</b>
+      <span>From</span><b>Elena Marsh, Bright Harbor Studio</b>
+      <span>Plan</span><b>Pro, annual</b>
+      <span>Received</span><b>Today, 9:14</b>
+    </div>
+    <h2>Charged twice for my annual plan</h2>
+    <div class="body" id="body">
+      <p>Hi, I was charged twice for my annual plan this month, $240 both times. I only have one account, and both charges are on the same card.</p>
+      <p>Please refund the duplicate charge. This is the second time this has happened and it's getting frustrating.</p>
+      <p>Elena</p>
+    </div>
+    <button class="triage" id="triage">Triage ticket</button>
+    <p class="err" id="err"></p>
+  </section>
+
+  <section class="results">
+    <div class="panel">
+      <h3>Which team should handle this ticket?</h3>
+      <div class="answer wait" id="team-answer">–</div>
+      <div class="bars" id="team-bars"></div>
+      <p class="sub" id="team-sub">&nbsp;</p>
+    </div>
+    <div class="panel">
+      <h3>Does the customer ask for money back?</h3>
+      <div class="answer wait" id="refund-answer">–</div>
+      <div class="gauge"><span class="dot" id="refund-dot"></span></div>
+      <div class="gauge-labels"><span>No</span><span>not sure</span><span>Yes</span></div>
+      <p class="sub" id="refund-sub">&nbsp;</p>
+    </div>
+    <div class="panel">
+      <h3>How upset is the customer?</h3>
+      <div class="answer wait" id="upset-answer">–</div>
+      <div class="scale" id="upset-scale"></div>
+      <p class="sub" id="upset-sub">&nbsp;</p>
+    </div>
+  </section>
+</main>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+const TEAMS = {
+  billing: "charges, invoices, refunds, plan changes",
+  technical: "bugs, errors, outages, integrations",
+  account: "login, access, user management",
+  sales: "new purchases, upgrades, quotes"
+};
+const LEVELS = ["calm", "annoyed", "angry", "furious"];
+const QUESTIONS = {
+  team: { type: "choice", instructions: "Which team should handle this ticket?", criteria: TEAMS },
+  refund: { type: "noul", instructions: "Does the customer ask for money back?" },
+  upset: { type: "score", instructions: "How upset is the customer?", criteria: LEVELS }
+};
+
+const $ = id => document.getElementById(id);
+const cap = s => s[0].toUpperCase() + s.slice(1);
+
+function drawEmpty() {
+  $("team-bars").innerHTML = Object.keys(TEAMS).map(k =>
+    `<span data-k="${k}">${cap(k)}</span><div class="track"><div class="fill" data-k="${k}"></div></div><span class="num" data-k="${k}">–</span>`).join("");
+  $("upset-scale").innerHTML = LEVELS.map((l, i) =>
+    `<div class="step" data-i="${i}"><div class="bg"></div><div class="lvl">${l}</div><div class="p">–</div></div>`).join("");
+}
+
+function ticketText() {
+  const meta = [...document.querySelectorAll(".ticket .meta span")].map(s => `${s.textContent}: ${s.nextElementSibling.textContent}`);
+  return meta.join("\n") + "\nSubject: " + document.querySelector(".ticket h2").textContent +
+    "\n\n" + [...$("body").querySelectorAll("p")].map(p => p.textContent).join("\n\n");
+}
+
+$("triage").addEventListener("click", async () => {
+  const btn = $("triage");
+  btn.disabled = true; btn.textContent = "Triaging…"; $("err").textContent = "";
+  drawEmpty();
+  ["team", "refund", "upset"].forEach(k => { $(k + "-answer").textContent = "…"; $(k + "-answer").className = "answer wait"; });
+  $("refund-dot").style.opacity = 0;
+  try {
+    const res = await gutsy(ticketText(), QUESTIONS);
+    const a = res.answers;
+
+    // team: choice
+    const t = a.team;
+    $("team-answer").textContent = cap(t.choice); $("team-answer").className = "answer";
+    for (const k of Object.keys(TEAMS)) {
+      const p = t.probabilities[k];
+      document.querySelector(`.fill[data-k="${k}"]`).style.width = (p * 100) + "%";
+      document.querySelector(`.fill[data-k="${k}"]`).classList.toggle("win", k === t.choice);
+      document.querySelector(`.num[data-k="${k}"]`).textContent = p.toFixed(2);
+      document.querySelector(`span[data-k="${k}"]`).classList.toggle("win", k === t.choice);
+    }
+    $("team-sub").textContent = `confidence ${t.confidence.toFixed(2)}, margin ${t.margin.toFixed(2)}` +
+      (t.reject !== undefined ? `, none of these ${t.reject.toFixed(2)}` : "");
+
+    // refund: yes/no, the probability is the confidence
+    const p = a.refund.noul;
+    $("refund-answer").textContent = p >= 0.5 ? "Yes" : "No"; $("refund-answer").className = "answer";
+    $("refund-dot").style.left = (p * 100) + "%"; $("refund-dot").style.opacity = 1;
+    const sure = p >= 0.5 ? p : 1 - p;
+    $("refund-sub").textContent = `P(yes) ${p.toFixed(2)}, so ${Math.round(sure * 100)}% sure it's a ${p >= 0.5 ? "yes" : "no"}`;
+
+    // upset: score
+    const u = a.upset, lvl = +u.level;
+    $("upset-answer").textContent = cap(LEVELS[lvl]); $("upset-answer").className = "answer";
+    document.querySelectorAll(".step").forEach((s, i) => {
+      const pi = u.probabilities[String(i)];
+      s.querySelector(".p").textContent = pi.toFixed(2);
+      s.querySelector(".bg").style.height = (pi * 100) + "%";
+      s.classList.toggle("win", i === lvl);
+    });
+    $("upset-sub").textContent = `expected level ${u.expected.toFixed(2)} on a 0-3 scale, confidence ${u.confidence.toFixed(2)}`;
+
+    btn.textContent = `Triage again (last run ${Math.round(res.usage.latency_ms)} ms)`;
+  } catch (e) {
+    ["team", "refund", "upset"].forEach(k => $(k + "-answer").textContent = "–");
+    $("err").innerHTML = e instanceof TypeError
+      ? "Couldn't reach gutsy. Run <code>gutsy-inference serve --cors</code> and press Triage ticket again."
+      : "gutsy returned an error: " + e.message.replace(/</g, "&lt;");
+    btn.textContent = "Triage ticket";
+    checkGutsy();
+  }
+  btn.disabled = false;
+});
+
+drawEmpty();
+checkGutsy();
+</script>
+</body>
+</html>

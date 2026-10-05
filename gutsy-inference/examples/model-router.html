@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model router | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #16123a;
+  --surface: #221c55;
+  --line: #3a3378;
+  --ink: #ece9ff;
+  --muted: #9d97d6;
+  --small: #57d9c0;
+  --large: #f5c451;
+  --deep: #ff6f91;
+  --font: "Sora", "Trebuchet MS", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(1200px 600px at 50% -200px, #2c2470, var(--bg));
+  color: var(--ink); font: 15px/1.5 var(--font);
+  display: grid; grid-template-rows: auto 1fr auto;
+}
+header { display: flex; align-items: center; gap: 14px; padding: 16px 24px; }
+header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.routes { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.routes span { display: flex; align-items: center; gap: 6px; }
+.routes i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status[data-state="ok"]::before { background: var(--small); }
+.status[data-state="down"]::before { background: var(--deep); }
+.status code { color: var(--ink); }
+
+.log { overflow-y: auto; padding: 8px 24px 24px; }
+.col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.empty { text-align: center; padding-top: 8vh; }
+.empty h2 { font-size: 28px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.02em; }
+.empty p { color: var(--muted); margin: 0 0 24px; }
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+.chip {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; text-align: left;
+}
+.chip:hover { border-color: var(--muted); }
+.chips.compact {
+  display: flex; flex-wrap: wrap; gap: 8px; max-width: 720px; margin: 0 auto 10px;
+}
+.chips.compact .chip {
+  flex: 0 0 auto; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px; padding: 6px 10px; border-radius: 999px; color: var(--muted);
+}
+.chip:focus-visible, button:focus-visible, .bar:focus-within { outline: 2px solid var(--large); outline-offset: 2px; }
+
+.user {
+  align-self: flex-end; max-width: 80%; background: #3b3290; padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px; white-space: pre-wrap;
+}
+.route {
+  border: 1px solid var(--line); border-left: 4px solid var(--c, var(--line)); border-radius: 10px;
+  background: var(--surface); padding: 12px 14px;
+}
+.route .verdict { font-weight: 600; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.route .verdict .name { color: var(--c); }
+.route .meta { color: var(--muted); font-size: 12.5px; font-weight: 400; margin-left: auto; }
+.bars { display: grid; grid-template-columns: 250px 1fr 44px; gap: 6px 10px; align-items: center; margin-top: 10px; font-size: 13px; }
+.bars .lbl { color: var(--muted); }
+.bars .lbl.win { color: var(--ink); }
+.track { height: 8px; border-radius: 4px; background: #2e2768; overflow: hidden; }
+.fill { height: 100%; width: 0; border-radius: 4px; transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.thinking { color: var(--muted); font-size: 13.5px; }
+.thinking::after { content: "…"; animation: blink 1s infinite; }
+.err { color: var(--deep); font-size: 13.5px; }
+.err code { color: var(--ink); }
+@keyframes blink { 50% { opacity: .2; } }
+
+form { padding: 12px 24px 20px; }
+.bar {
+  max-width: 720px; margin: 0 auto; display: flex; gap: 10px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 16px; padding: 8px 8px 8px 14px;
+}
+textarea {
+  flex: 1; resize: none; border: 0; background: transparent; color: var(--ink);
+  font: inherit; padding: 8px 0; height: 40px; max-height: 160px; outline: none;
+}
+textarea::placeholder { color: var(--muted); }
+.send {
+  border: 0; border-radius: 10px; padding: 0 18px; font: 600 14px var(--font);
+  background: var(--ink); color: var(--bg); cursor: pointer;
+}
+.send:disabled { opacity: .5; cursor: progress; }
+@media (max-width: 640px) {
+  .chips { grid-template-columns: 1fr; } .routes { display: none; }
+  .bars { grid-template-columns: 1fr 44px; } .bars .track { grid-column: 1 / -1; grid-row: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } .thinking::after { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Model router</h1>
+  <div class="routes">
+    <span><i style="background:var(--small)"></i>Small</span>
+    <span><i style="background:var(--large)"></i>Large, reasoning off</span>
+    <span><i style="background:var(--deep)"></i>Large, high reasoning</span>
+  </div>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<main class="log" id="log">
+  <div class="col" id="col">
+    <div class="empty" id="empty">
+      <h2>Ask anything</h2>
+      <p>gutsy reads your message and picks the cheapest model that can answer it well.</p>
+      <div class="chips">
+        <button class="chip">hey, what's the capital of Portugal?</button>
+        <button class="chip">Make this friendlier: "Your invoice is overdue. Pay now."</button>
+        <button class="chip">Explain why the Roman Republic fell, for a curious 15 year old.</button>
+        <button class="chip">Prove there are infinitely many primes of the form 4k+3.</button>
+        <button class="chip">My Postgres query got 40x slower after adding an index on (user_id, created_at). The planner now picks a nested loop. Why, and how do I fix it?</button>
+        <button class="chip">Write a haiku about Mondays.</button>
+      </div>
+    </div>
+  </div>
+</main>
+<form id="form">
+  <div class="bar">
+    <textarea id="msg" placeholder="Type a message" rows="1" aria-label="Message"></textarea>
+    <button class="send" id="send">Send</button>
+  </div>
+</form>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+const ROUTES = {
+  small: { label: "Small model", color: "var(--small)",
+           desc: "small model: greetings, simple facts, short rewrites, formatting, quick classification" },
+  large: { label: "Large model, reasoning off", color: "var(--large)",
+           desc: "large model with reasoning off: needs broad knowledge, nuance or good writing, but no multi-step reasoning" },
+  large_reasoning: { label: "Large model, high reasoning budget", color: "var(--deep)",
+           desc: "large model with a high reasoning budget: multi-step math or logic, proofs, debugging, complex code, plans with many constraints" }
+};
+const QUESTION = {
+  route: {
+    type: "choice",
+    instructions: "Route this user message to an AI model. Pick the cheapest model that will still answer it well.",
+    criteria: Object.fromEntries(Object.entries(ROUTES).map(([k, v]) => [k, v.desc]))
+  }
+};
+
+const col = document.getElementById("col"), log = document.getElementById("log");
+const msg = document.getElementById("msg"), send = document.getElementById("send");
+let busy = false;
+
+document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+  msg.value = c.textContent; submit();
+}));
+msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
+msg.addEventListener("input", () => { msg.style.height = "40px"; msg.style.height = msg.scrollHeight + "px"; });
+document.getElementById("form").addEventListener("submit", e => { e.preventDefault(); submit(); });
+
+function add(cls, html) {
+  const d = document.createElement("div"); d.className = cls;
+  if (html !== undefined) d.innerHTML = html;
+  col.appendChild(d); log.scrollTop = log.scrollHeight;
+  return d;
+}
+
+async function submit() {
+  const text = msg.value.trim();
+  if (!text || busy) return;
+  busy = true; send.disabled = true;
+  const empty = document.getElementById("empty");
+  if (empty) {   // keep the examples one click away, as a compact row above the input
+    const chips = empty.querySelector(".chips");
+    chips.classList.add("compact");
+    document.getElementById("form").prepend(chips);
+    empty.remove();
+  }
+  add("user").textContent = text;
+  msg.value = ""; msg.style.height = "40px";
+  const card = add("thinking", "Routing");
+  try {
+    const res = await gutsy({ user_message: text }, QUESTION);
+    const a = res.answers.route, win = ROUTES[a.choice];
+    card.className = "route";
+    card.style.setProperty("--c", win.color);
+    card.innerHTML = `<div class="verdict">Routed to <span class="name">${win.label}</span>
+      <span class="meta">confidence ${a.confidence.toFixed(2)}, ${Math.round(res.usage.latency_ms)} ms</span></div>
+      <div class="bars">${Object.entries(ROUTES).map(([k, r]) => `
+        <span class="lbl ${k === a.choice ? "win" : ""}">${r.label}</span>
+        <div class="track"><div class="fill" data-w="${a.probabilities[k]}" style="background:${r.color}"></div></div>
+        <span class="num">${a.probabilities[k].toFixed(2)}</span>`).join("")}</div>`;
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      card.querySelectorAll(".fill").forEach(f => f.style.width = (f.dataset.w * 100) + "%")));
+  } catch (e) {
+    card.className = "err";
+    card.innerHTML = e instanceof TypeError
+      ? "Couldn't reach gutsy. Run <code>gutsy-inference serve --cors</code> and send again."
+      : "gutsy returned an error: " + e.message.replace(/</g, "&lt;");
+    checkGutsy();
+  }
+  log.scrollTop = log.scrollHeight;
+  busy = false; send.disabled = false; msg.focus();
+}
+
+checkGutsy();
+</script>
+</body>
+</html>

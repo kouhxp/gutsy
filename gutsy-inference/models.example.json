@@ -1,11 +1,18 @@
 {
-  "default": "gutsy-0.8b-v03",
+  "default": "gutsy-0.8b-v04",
   "models": {
-    "gutsy-0.8b-v03": {
-      "gguf": "models/gutsy-0.8b-v03-q8_0.gguf",
-      "calibration": "models/gutsy-0.8b-v03.calibration.json",
+    "gutsy-0.8b-v04": {
+      "gguf": "models/gutsy-0.8b-v04-q8_0.gguf",
+      "calibration": "models/gutsy-0.8b-v04.calibration.json",
       "n_ctx": 8192,
       "reject_slot": true
+    },
+    "gutsy-0.8b-v04-q4": {
+      "gguf": "models/gutsy-0.8b-v04-q4_k_m.gguf",
+      "calibration": "models/gutsy-0.8b-v04-q4_k_m.calibration.json",
+      "n_ctx": 8192,
+      "reject_slot": true,
+      "cache_tol": 0.02
     }
   },
   "n_threads": null,

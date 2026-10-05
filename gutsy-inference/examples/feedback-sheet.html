@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask your feedback sheet | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #e6efe7;
+  --sheet: #ffffff;
+  --grid: #cfddd1;
+  --head: #f2f7f2;
+  --ink: #17301f;
+  --muted: #5c7564;
+  --accent: #237a4b;
+  --accent-ink: #ffffff;
+  --hot: #e2553a;
+  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font);
+  display: grid; grid-template-rows: auto 1fr; font-variant-numeric: tabular-nums;
+}
+header {
+  display: flex; align-items: baseline; gap: 16px; padding: 14px 20px 10px;
+}
+header h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #b9c6bb; }
+.status[data-state="ok"]::before { background: var(--accent); }
+.status[data-state="down"]::before { background: var(--hot); }
+main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 0 20px 20px; min-height: 0; }
+
+/* sheet */
+.sheet { background: var(--sheet); border: 1px solid var(--grid); border-radius: 6px; overflow: auto; min-height: 0; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; }
+th, td { border-right: 1px solid var(--grid); border-bottom: 1px solid var(--grid); padding: 6px 10px; text-align: left; vertical-align: top; }
+thead th {
+  position: sticky; top: 0; background: var(--head); font-weight: 600; font-size: 12.5px;
+  z-index: 2; white-space: nowrap;
+}
+tbody th { background: var(--head); color: var(--muted); font-weight: 500; text-align: right; width: 36px; position: sticky; left: 0; z-index: 1; }
+thead th:first-child { left: 0; z-index: 3; }
+td.fb { min-width: 260px; }
+td.nowrap { white-space: nowrap; }
+td.dim { color: var(--muted); }
+th.q { width: 118px; min-width: 104px; white-space: normal; vertical-align: bottom; cursor: pointer; }
+th.q .qt { display: block; }
+th.q .qc { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
+th.q button { all: unset; float: right; color: var(--muted); cursor: pointer; padding: 0 2px; margin-left: 6px; }
+th.q button:hover, th.q button:focus-visible { color: var(--hot); }
+td.p { text-align: right; font-weight: 600; transition: background-color .35s; }
+td.p.wait { color: var(--muted); font-weight: 400; }
+td.p.wait::after { content: "…"; animation: blink 1s infinite; }
+td.p.err { color: var(--hot); font-weight: 400; font-size: 12px; }
+@keyframes blink { 50% { opacity: .2; } }
+tr.hit td.fb { box-shadow: inset 3px 0 0 var(--hot); }
+
+/* ask panel */
+aside { display: flex; flex-direction: column; gap: 14px; }
+.ask { background: var(--sheet); border: 1px solid var(--grid); border-radius: 6px; padding: 14px; }
+.ask label { font-weight: 600; display: block; margin-bottom: 8px; }
+textarea {
+  width: 100%; min-height: 84px; resize: vertical; font: inherit; color: inherit;
+  border: 1px solid var(--grid); border-radius: 4px; padding: 8px 10px; background: #fbfdfb;
+}
+textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.run {
+  margin-top: 10px; width: 100%; padding: 10px; border: 0; border-radius: 4px;
+  background: var(--accent); color: var(--accent-ink); font: 600 14px var(--font); cursor: pointer;
+}
+.run:disabled { opacity: .55; cursor: progress; }
+.run:focus-visible, .idea:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ideas h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--muted); }
+.idea {
+  display: block; width: 100%; text-align: left; margin-bottom: 6px; padding: 8px 10px;
+  border: 1px dashed var(--accent); border-radius: 4px; background: transparent; color: var(--ink);
+  font: inherit; cursor: pointer;
+}
+.idea:hover { background: #d7e8da; }
+.note { color: var(--muted); font-size: 12.5px; margin: 0; }
+.note code { background: #d7e5d9; padding: 1px 4px; border-radius: 3px; }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.legend span.bar { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #fff, var(--hot)); border: 1px solid var(--grid); }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; } .sheet { max-height: 60vh; } }
+@media (prefers-reduced-motion: reduce) { td.p.wait::after { animation: none; } td.p { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Customer feedback</h1>
+  <p>30 rows from September. Ask a yes/no question and gutsy answers it for every row.</p>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<main>
+  <div class="sheet" id="sheet">
+    <table>
+      <thead><tr id="headrow">
+        <th>#</th><th>Customer</th><th>Plan</th><th>Channel</th><th>Feedback</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <aside>
+    <div class="ask">
+      <label for="q">Ask every row</label>
+      <textarea id="q" placeholder="e.g. Is this a churn risk?"></textarea>
+      <button class="run" id="run">Ask 30 rows</button>
+    </div>
+    <div class="ideas">
+      <h2>Try one of these</h2>
+      <button class="idea">Is this a churn risk?</button>
+      <button class="idea">Mentions a competitor?</button>
+      <button class="idea">Is this a bug report?</button>
+      <button class="idea">Is the customer happy with the product?</button>
+    </div>
+    <div class="legend">P(yes) 0 <span class="bar"></span> 1</div>
+    <p class="note">Each cell is a real call to your local gutsy server: the row is the state, your text is a yes/no question. Click a column header to sort by it.</p>
+  </aside>
+</main>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+const ROWS = [
+  ["2026-09-01", "Hollis Bakery", "Starter", "Email", "Invoices go out fine but the bank sync broke twice this month. Third time and we're done. I don't have time to reconcile by hand."],
+  ["2026-09-01", "Marlow & Pike Legal", "Pro", "In-app", "Love the new recurring invoice templates. Saved my assistant a whole afternoon."],
+  ["2026-09-02", "Quarry Lane Dental", "Pro", "Survey", "We trialed Tallyfin last week and their payroll add-on is tempting. Our renewal is in November."],
+  ["2026-09-03", "Okafor Design Studio", "Starter", "Chat", "How do I add a second currency for one client? Couldn't find it in settings."],
+  ["2026-09-03", "Brennan Freight", "Business", "Email", "Our CFO asked me to cancel at the end of the quarter. Too expensive for what we actually use."],
+  ["2026-09-04", "Little Fern Florist", "Starter", "Survey", "Simple and does what I need. Five stars."],
+  ["2026-09-05", "Vantage Physio", "Pro", "In-app", "The PDF export cuts off the last line item when an invoice has more than 20 rows."],
+  ["2026-09-05", "Sato Architecture", "Business", "Call notes", "Compared you with Ledgerly. They have better multi-entity reporting, but your approvals flow is nicer. Staying for now."],
+  ["2026-09-08", "Greywater Brewing", "Pro", "Email", "Please add bank rules like Brightbook has. Right now I categorize every transaction by hand."],
+  ["2026-09-08", "Pinecrest HOA", "Starter", "Survey", "Fine."],
+  ["2026-09-09", "Delgado Plumbing", "Starter", "Chat", "Got charged twice for September. If this isn't refunded by Friday I'm moving our books elsewhere."],
+  ["2026-09-10", "North Arc Robotics", "Business", "Call notes", "Expanding to 40 seats next year and want to talk about volume pricing."],
+  ["2026-09-10", "Wren & Co Bookkeeping", "Pro", "Email", "Half my clients already moved to Brightbook. Their mobile app is just better. Considering switching the whole practice."],
+  ["2026-09-11", "Ashby Yoga", "Starter", "In-app", "The reminder emails sound a bit robotic. Can I edit the wording?"],
+  ["2026-09-12", "Kestrel Logistics", "Business", "Email", "Support took four days to answer a payroll question during month-end close. Not acceptable at our tier."],
+  ["2026-09-12", "Moss Hill Farm", "Starter", "Survey", "My accountant says your tax reports are the cleanest she's seen."],
+  ["2026-09-15", "Tidewater Marine", "Pro", "Chat", "Is there a way to bulk-import 300 old invoices from a CSV?"],
+  ["2026-09-15", "Corvid Games", "Pro", "In-app", "Your API is so much better documented than Tallyfin's. Built our integration in two days."],
+  ["2026-09-16", "Linden Pediatrics", "Business", "Call notes", "The board decided not to renew. They want one vendor for both billing and patient records."],
+  ["2026-09-17", "Rook Coffee Roasters", "Starter", "Survey", "Dark mode please!"],
+  ["2026-09-17", "Halvorsen Electric", "Pro", "Email", "Ledgerly quoted us 30% less for the same number of seats. Can you match it?"],
+  ["2026-09-18", "Juniper Tutoring", "Starter", "In-app", "Took me ten minutes to set up. Great onboarding."],
+  ["2026-09-19", "Baptiste Catering", "Pro", "Chat", "Card payouts are taking 5 days instead of 2 since the last update."],
+  ["2026-09-22", "Summit Ridge Realty", "Business", "Email", "We're evaluating alternatives ahead of renewal. Please send a full export of our data."],
+  ["2026-09-22", "Fable Print Shop", "Starter", "Survey", "Would love a way to attach photos of the job to an invoice."],
+  ["2026-09-23", "Ionic Labs", "Business", "Call notes", "Security review passed. Moving ahead with the SSO rollout next sprint."],
+  ["2026-09-24", "Prairie Vet Clinic", "Pro", "Email", "We moved from Brightbook to you last year and haven't looked back."],
+  ["2026-09-25", "Esperanza Cleaning", "Starter", "Chat", "The Android app keeps logging me out. Annoying, but not a dealbreaker."],
+  ["2026-09-26", "Gallo Motors", "Business", "Email", "Third outage this quarter. We're piloting Tallyfin in one branch to see if it's more reliable."],
+  ["2026-09-29", "Clearwater Pools", "Starter", "Survey", "Good value. Wish turning a quote into an invoice was one click."]
+];
+
+const tbody = document.getElementById("rows");
+const headrow = document.getElementById("headrow");
+const rowEls = ROWS.map((r, i) => {
+  const tr = document.createElement("tr");
+  tr.dataset.i = i;
+  tr.innerHTML = `<th>${i + 1}</th><td class="nowrap">${r[1]}</td>` +
+    `<td class="dim">${r[2]}</td><td class="nowrap dim">${r[3]}</td><td class="fb">${r[4]}</td>`;
+  tbody.appendChild(tr);
+  return tr;
+});
+
+function heat(p) {
+  // white -> warm red, alpha follows probability
+  return `rgba(226, 85, 58, ${(0.06 + 0.84 * p).toFixed(3)})`;
+}
+
+let colCount = 0, busy = false;
+const q = document.getElementById("q"), run = document.getElementById("run");
+
+document.querySelectorAll(".idea").forEach(b => b.addEventListener("click", () => {
+  q.value = b.textContent; q.focus();
+}));
+q.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+run.addEventListener("click", ask);
+
+async function ask() {
+  const text = q.value.trim();
+  if (!text || busy) return;
+  busy = true; run.disabled = true;
+  const col = colCount++;
+  const th = document.createElement("th");
+  th.className = "q"; th.tabIndex = 0;
+  th.innerHTML = `<button aria-label="Remove column">×</button><span class="qt"></span><span class="qc">asking…</span>`;
+  th.querySelector(".qt").textContent = text;
+  headrow.appendChild(th);
+  const cells = rowEls.map(tr => {
+    const td = document.createElement("td");
+    td.className = "p wait"; td.dataset.col = col;
+    tr.appendChild(td);
+    return td;
+  });
+  th.querySelector("button").addEventListener("click", e => {
+    e.stopPropagation(); th.remove(); cells.forEach(c => c.remove()); markHits();
+  });
+  th.addEventListener("click", () => sortBy(col));
+  th.addEventListener("keydown", e => { if (e.key === "Enter") sortBy(col); });
+
+  let yes = 0, done = 0, ms = 0;
+  for (let i = 0; i < ROWS.length; i++) {
+    const [date, customer, plan, channel, feedback] = ROWS[i];
+    const td = cells[i];
+    td.scrollIntoView({ block: "nearest", inline: "nearest" });
+    try {
+      const res = await gutsy({ date, customer, plan, channel, feedback },
+                              { a: { type: "noul", instructions: text } });
+      const p = res.answers.a.noul;
+      ms += res.usage ? res.usage.latency_ms : 0;
+      td.className = "p"; td.dataset.p = p;
+      td.textContent = p.toFixed(2);
+      td.style.backgroundColor = heat(p);
+      td.style.color = p > 0.62 ? "#fff" : "";
+      if (p >= 0.5) yes++;
+    } catch (e) {
+      td.className = "p err"; td.dataset.p = -1;
+      td.textContent = e instanceof TypeError ? "no server" : "error";
+      td.title = e.message;
+      if (e instanceof TypeError) {   // server unreachable: stop instead of failing 30 times
+        cells.slice(i + 1).forEach(c => { c.className = "p err"; c.dataset.p = -1; c.textContent = ""; });
+        checkGutsy();
+        break;
+      }
+    }
+    done++;
+    th.querySelector(".qc").textContent = `${yes} of ${done} yes`;
+  }
+  th.querySelector(".qc").textContent = done < ROWS.length ? "gutsy not reachable"
+    : `${yes} of 30 yes`;
+  th.title = `gutsy time for 30 rows: ${(ms / 1000).toFixed(1)} s`;
+  document.getElementById("sheet").scrollTop = 0;
+  markHits();
+  busy = false; run.disabled = false;
+}
+
+let sortState = { col: null, dir: 1 };
+function sortBy(col) {
+  sortState = { col, dir: sortState.col === col ? -sortState.dir : -1 };
+  const val = tr => {
+    const td = tr.querySelector(`td[data-col="${col}"]`);
+    return td && td.dataset.p ? +td.dataset.p : -2;
+  };
+  rowEls.slice().sort((a, b) => (val(a) - val(b)) * sortState.dir || a.dataset.i - b.dataset.i)
+    .forEach(tr => tbody.appendChild(tr));
+}
+
+function markHits() {
+  rowEls.forEach(tr => {
+    const last = [...tr.querySelectorAll("td.p")].pop();
+    tr.classList.toggle("hit", !!last && +last.dataset.p >= 0.5);
+  });
+}
+
+checkGutsy();
+</script>
+</body>
+</html>

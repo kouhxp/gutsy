@@ -47,7 +47,7 @@ class Registry:
                                 max_options=spec.get("max_options"),
                                 reject_slot=bool(spec.get("reject_slot", False)),
                                 shortlist=bool(spec.get("shortlist", True)))
-                engine.self_check()
+                engine.self_check(tol=float(spec.get("cache_tol", 1e-3)))
                 self.engines[name] = engine
             return self.engines[name]
 

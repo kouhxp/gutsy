@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maze chase, played by gutsy | gutsy example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+header { flex-wrap: wrap; row-gap: 4px; }
+header h1 { white-space: nowrap; }
+:root {
+  --bg: #0c2a2e;
+  --surface: #12373c;
+  --line: #22565a;
+  --wall: #2f8f8a;
+  --ink: #e4f6f3;
+  --muted: #8fbdb7;
+  --lemon: #ffd23f;
+  --crumb: #ffe9a8;
+  --enemy1: #ff5d8f;
+  --enemy2: #a493ff;
+  --font: "Rubik", "Trebuchet MS", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
+header { display: flex; align-items: baseline; gap: 14px; padding: 16px 24px 8px; }
+header h1 { margin: 0; font-size: 21px; font-weight: 700; }
+header p { margin: 0; color: var(--muted); }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.status[data-state="ok"]::before { background: var(--wall); }
+.status[data-state="down"]::before { background: var(--enemy1); }
+.status code, .err code { color: var(--ink); }
+main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 22px; padding: 8px 24px 24px; align-items: start; }
+
+.board { position: relative; }
+canvas { width: 100%; height: auto; display: block; border-radius: 12px; background: #08201f; }
+.overlay {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+  background: rgba(8, 32, 31, .78); border-radius: 12px; text-align: center; gap: 6px;
+}
+.overlay.on { display: flex; }
+.overlay b { font-size: 28px; }
+.overlay span { color: var(--muted); }
+.controls { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+.btn { font: 600 15px var(--font); border-radius: 10px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.primary { background: var(--lemon); color: #2b2200; border-color: var(--lemon); min-width: 150px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn:focus-visible { outline: 2px solid var(--lemon); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 13px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.stat { background: var(--surface); border-radius: 10px; padding: 8px 12px; }
+.stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 12px; }
+.panel { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.panel h2 { margin: 0 0 10px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.opt { display: grid; grid-template-columns: 34px 1fr 42px; gap: 2px 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.opt:first-of-type { border-top: 0; }
+.opt .arrow { font-size: 20px; text-align: center; color: var(--muted); grid-row: span 2; }
+.opt .desc { font-size: 13px; color: var(--muted); }
+.opt .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.opt .fill { height: 100%; background: var(--muted); border-radius: 3px; transition: width .25s; }
+.opt .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; grid-row: span 2; }
+.opt.win .arrow, .opt.win .num { color: var(--lemon); }
+.opt.win .desc { color: var(--ink); }
+.opt.win .fill { background: var(--lemon); }
+.empty { color: var(--muted); font-size: 13.5px; margin: 0; }
+.log { display: flex; flex-wrap: wrap; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.log span { background: var(--bg); border-radius: 6px; padding: 1px 7px; color: var(--muted); }
+.log span.forced { opacity: .45; }
+.log span.bad { color: var(--enemy1); opacity: 1; }
+.opt.dropped { opacity: .45; }
+.opt.dropped .track { visibility: hidden; }
+.note { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+.err { color: var(--enemy1); font-size: 13.5px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .opt .fill { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Maze chase, played by gutsy</h1>
+  <p>At every junction the page describes each way out and gutsy picks one.</p>
+  <span class="status" id="status">Checking gutsy…</span>
+</header>
+<main>
+  <section>
+    <div class="board">
+      <canvas id="cv" width="608" height="416" aria-label="Maze game board"></canvas>
+      <div class="overlay" id="overlay"><b id="ov-title"></b><span id="ov-sub"></span></div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="auto">Start autoplay</button>
+      <button class="btn" id="step">One move</button>
+      <button class="btn" id="reset">New game</button>
+      <span class="hint">Paused? Arrow keys play by hand.</span>
+    </div>
+    <p class="err" id="err"></p>
+  </section>
+  <aside>
+    <div class="stats">
+      <div class="stat"><b id="s-crumbs">0</b><span>crumbs left</span></div>
+      <div class="stat"><b id="s-lives">3</b><span>lives</span></div>
+      <div class="stat"><b id="s-moves">0/0</b><span>gutsy picks / moves</span></div>
+      <div class="stat"><b id="s-ms">–</b><span>ms per pick</span></div>
+    </div>
+    <div class="panel">
+      <h2>Last move</h2>
+      <div id="options"><p class="empty">Press Start autoplay. Each turn the legal moves are sent to gutsy as a choice question.</p></div>
+    </div>
+    <div class="panel">
+      <h2>Recent moves</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</main>
+<script>
+const GUTSY = new URLSearchParams(location.search).get("server") || "http://127.0.0.1:8765";
+
+async function gutsy(state, questions) {
+  const r = await fetch(GUTSY + "/v1/systemone", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "HTTP " + r.status);
+  return j;
+}
+
+async function checkGutsy() {
+  const el = document.getElementById("status");
+  try {
+    const j = await (await fetch(GUTSY + "/health")).json();
+    el.dataset.state = "ok";
+    el.textContent = "Connected to " + Object.keys(j.models || {})[0];
+  } catch (e) {
+    el.dataset.state = "down";
+    el.innerHTML = "Can't reach gutsy. Run <code>gutsy-inference serve --cors</code>";
+  }
+}
+
+// ---- maze: # wall, . crumb, P player start, E enemy start ----
+const MAP = [
+  "###################",
+  "#........#........#",
+  "#.##.###.#.###.##.#",
+  "#.................#",
+  "#.##.#.#####.#.##.#",
+  "#....#...#...#....#",
+  "####.###.#.###.####",
+  "#.......E.E.......#",
+  "#.##.#.#####.#.##.#",
+  "#....#...P...#....#",
+  "#.##.###.#.###.##.#",
+  "#.................#",
+  "###################"
+];
+const ROWS = MAP.length, COLS = MAP[0].length, CELL = 32;
+const DIRS = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+const ARROW = { up: "↑", down: "↓", left: "←", right: "→" };
+const OPPOSITE = { up: "down", down: "up", left: "right", right: "left" };
+const ENEMY_COLORS = ["--enemy1", "--enemy2"];
+const key = (r, c) => r * COLS + c;
+const isWall = (r, c) => MAP[r][c] === "#";
+
+let G;   // game state
+function newGame() {
+  const crumbs = new Set(), enemies = [];
+  let player;
+  MAP.forEach((row, r) => [...row].forEach((ch, c) => {
+    if (ch === ".") crumbs.add(key(r, c));
+    if (ch === "P") player = [r, c];
+    if (ch === "E") enemies.push({ pos: [r, c], start: [r, c], last: null });
+  }));
+  G = { crumbs, player, start: player.slice(), enemies, lives: 3, moves: 0, turn: 0,
+        trail: [], lastDir: null, over: false, ms: [], flash: 0, decisions: 0 };
+}
+
+function neighbors(r, c) {
+  return Object.entries(DIRS).filter(([, [dr, dc]]) => !isWall(r + dr, c + dc))
+    .map(([d, [dr, dc]]) => [d, r + dr, c + dc]);
+}
+function bfs(r, c) {
+  const dist = new Map([[key(r, c), 0]]), q = [[r, c]];
+  while (q.length) {
+    const [cr, cc] = q.shift();
+    for (const [, nr, nc] of neighbors(cr, cc)) {
+      if (!dist.has(key(nr, nc))) { dist.set(key(nr, nc), dist.get(key(cr, cc)) + 1); q.push([nr, nc]); }
+    }
+  }
+  return dist;
+}
+function nearestCrumb(dist) {
+  let best = Infinity;
+  for (const k of G.crumbs) if (dist.has(k)) best = Math.min(best, dist.get(k));
+  return best;
+}
+function nearestEnemy(dist) {
+  return Math.min(...G.enemies.map(e => dist.get(key(...e.pos)) ?? Infinity));
+}
+
+const steps = n => n === 1 ? "1 step" : `${n} steps`;
+// Plan this turn: guardrails drop unsafe moves and turning back, the rest are described in
+// words for gutsy. Returns { offered: {dir: description}, dropped: {dir: reason} }.
+function planMoves() {
+  const [r, c] = G.player;
+  const here = bfs(r, c);
+  const opts = neighbors(r, c).map(([d, nr, nc]) => {
+    const dist = bfs(nr, nc);
+    return { d, nr, nc, dist, enemy: nearestEnemy(dist), drop: null };
+  });
+  // guardrail 1: never step next to an enemy if some move keeps 2+ steps away
+  if (opts.some(o => o.enemy >= 2)) opts.forEach(o => { if (o.enemy < 2) o.drop = "an enemy is right there"; });
+  // guardrail 2: no turning back unless an enemy blocks every other way (stops back-and-forth loops)
+  const back = opts.find(o => o.d === OPPOSITE[G.lastDir]);
+  if (back && !back.drop && opts.some(o => o !== back && !o.drop && o.enemy >= 4))
+    back.drop = "turning back (only allowed when an enemy blocks the way)";
+
+  const offered = {}, dropped = {};
+  for (const o of opts) {
+    if (o.drop) { dropped[o.d] = o.drop; continue; }
+    const parts = [];
+    if (o.enemy <= 3) parts.push(`an enemy is close, ${steps(o.enemy)} away`);
+    else parts.push(`nearest enemy ${steps(o.enemy)} away`);
+    // crumbs that lie this way: within 6 steps of the new square and closer from it than from here
+    let ahead = 0;
+    for (const k of G.crumbs) { const dn = o.dist.get(k); if (dn <= 6 && dn < here.get(k)) ahead++; }
+    if (G.crumbs.has(key(o.nr, o.nc))) parts.push("eats a crumb now");
+    parts.push(ahead ? `${ahead} ${ahead === 1 ? "crumb" : "crumbs"} this way within 6 steps`
+                     : `no crumbs this way nearby (nearest ${steps(nearestCrumb(o.dist))})`);
+    if (o.d === G.lastDir) parts.push("keeps going straight");
+    if (o.d === OPPOSITE[G.lastDir]) parts.push("turns back");
+    offered[o.d] = parts.join("; ");
+  }
+  return { offered, dropped };
+}
+
+// ---- enemies: chase most of the time, wander a little; move 2 turns out of 3 ----
+function moveEnemies() {
+  if (G.turn % 3 === 2) return;
+  const toPlayer = bfs(...G.player);
+  for (const e of G.enemies) {
+    let opts = neighbors(...e.pos).filter(([d]) => d !== OPPOSITE[e.last]);
+    if (!opts.length) opts = neighbors(...e.pos);
+    let pick;
+    if (Math.random() < 0.75) {
+      opts.sort((a, b) => toPlayer.get(key(a[1], a[2])) - toPlayer.get(key(b[1], b[2])));
+      pick = opts[0];
+    } else pick = opts[Math.floor(Math.random() * opts.length)];
+    e.last = pick[0]; e.pos = [pick[1], pick[2]];
+  }
+}
+const caught = () => G.enemies.some(e => e.pos[0] === G.player[0] && e.pos[1] === G.player[1]);
+
+function applyMove(dir) {
+  const [dr, dc] = DIRS[dir], [r, c] = G.player;
+  if (isWall(r + dr, c + dc)) return null;
+  const before = G.enemies.map(e => e.pos.slice()), from = G.player.slice();
+  G.trail.push(key(r, c)); if (G.trail.length > 8) G.trail.shift();
+  G.player = [r + dr, c + dc]; G.lastDir = dir; G.moves++; G.turn++;
+  G.crumbs.delete(key(...G.player));
+  let hit = caught();
+  if (!hit) {
+    moveEnemies();
+    // also caught if an enemy and the player swapped cells
+    hit = caught() || G.enemies.some((e, i) => e.pos[0] === from[0] && e.pos[1] === from[1] &&
+                                               before[i][0] === G.player[0] && before[i][1] === G.player[1]);
+  }
+  if (hit) {
+    G.lives--; G.flash = 8; G.trail = []; G.lastDir = null;
+    if (G.lives > 0) { G.player = G.start.slice(); G.enemies.forEach(e => { e.pos = e.start.slice(); e.last = null; }); }
+  }
+  if (G.lives <= 0) endGame("Caught", `${G.crumbs.size} crumbs left after ${G.moves} moves`);
+  else if (!G.crumbs.size) endGame("All crumbs eaten", `in ${G.moves} moves with ${G.lives} ${G.lives === 1 ? "life" : "lives"} left`);
+  return hit;
+}
+
+function endGame(title, sub) {
+  G.over = true; autoplay = false;
+  $("ov-title").textContent = title; $("ov-sub").textContent = sub;
+  $("overlay").classList.add("on");
+  syncButtons();
+}
+
+// ---- drawing (original characters: a lemon blob and two spiky enemies) ----
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function draw() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = css("--wall");
+  MAP.forEach((row, r) => [...row].forEach((ch, c) => {
+    if (ch === "#") { ctx.beginPath(); ctx.roundRect(c * CELL + 3, r * CELL + 3, CELL - 6, CELL - 6, 7); ctx.fill(); }
+  }));
+  ctx.fillStyle = css("--crumb");
+  for (const k of G.crumbs) {
+    const r = Math.floor(k / COLS), c = k % COLS;
+    ctx.beginPath(); ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, 3.2, 0, 7); ctx.fill();
+  }
+  G.enemies.forEach((e, i) => drawEnemy(e.pos, css(ENEMY_COLORS[i])));
+  drawPlayer();
+  if (G.flash > 0) { ctx.fillStyle = `rgba(255, 93, 143, ${G.flash / 24})`; ctx.fillRect(0, 0, cv.width, cv.height); G.flash--; }
+  $("s-crumbs").textContent = G.crumbs.size;
+  $("s-lives").textContent = G.lives;
+  $("s-moves").textContent = `${G.decisions}/${G.moves}`;
+  $("s-ms").textContent = G.ms.length ? Math.round(G.ms.reduce((a, b) => a + b) / G.ms.length) : "–";
+}
+function drawPlayer() {
+  const [r, c] = G.player, x = c * CELL + CELL / 2, y = r * CELL + CELL / 2;
+  ctx.fillStyle = css("--lemon");
+  ctx.beginPath(); ctx.roundRect(x - 12, y - 12, 24, 24, 9); ctx.fill();
+  const [dy, dx] = DIRS[G.lastDir || "right"];   // eyes look the way it last moved
+  ctx.fillStyle = "#2b2200";
+  for (const s of [-5, 5]) { ctx.beginPath(); ctx.arc(x + s + dx * 3, y - 3 + dy * 3, 2.6, 0, 7); ctx.fill(); }
+}
+function drawEnemy([r, c], color) {
+  const x = c * CELL + CELL / 2, y = r * CELL + CELL / 2, spikes = 7;
+  ctx.fillStyle = color; ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2, rad = i % 2 ? 8 : 13;
+    ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#08201f"; ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill();
+}
+
+// ---- gutsy turn ----
+const $ = id => document.getElementById(id);
+async function gutsyMove(offered) {
+  const state = `Maze game. You collect crumbs and must not be caught by the ${G.enemies.length} enemies. ` +
+    `Crumbs left: ${G.crumbs.size}. Lives: ${G.lives}.`;
+  const res = await gutsy(state, {
+    move: { type: "choice",
+            instructions: "Which way should you move? Stay away from enemies first; among safe moves, go where the most crumbs are.",
+            criteria: offered }
+  });
+  G.ms.push(res.usage ? res.usage.latency_ms : 0); if (G.ms.length > 30) G.ms.shift();
+  return res.answers.move;
+}
+function showDecision({ offered, dropped }, a) {
+  const dirs = Object.keys(offered).sort((x, y) => (a ? a.probabilities[y] - a.probabilities[x] : 0));
+  const box = $("options");
+  box.innerHTML = a ? "" : '<p class="note">Corridor: only one way forward, no decision needed.</p>';
+  const row = (d, text, p, cls) => {
+    const el = document.createElement("div");
+    el.className = "opt " + cls;
+    el.innerHTML = `<span class="arrow">${ARROW[d]}</span><span class="desc"></span><span class="num">${p}</span>
+      <div class="track"><div class="fill"></div></div>`;
+    el.querySelector(".desc").textContent = text;
+    box.appendChild(el);
+    return el;
+  };
+  for (const d of dirs) {
+    const p = a ? a.probabilities[d] : 1;
+    const el = row(d, `${d}: ${offered[d]}`, a ? p.toFixed(2) : "only", d === (a ? a.choice : dirs[0]) ? "win" : "");
+    el.querySelector(".fill").style.width = (p * 100) + "%";
+  }
+  for (const [d, why] of Object.entries(dropped)) row(d, `${d}: not offered, ${why}`, "", "dropped");
+}
+function logMove(dir, p, hit) {
+  const s = document.createElement("span");
+  s.textContent = `${ARROW[dir]} ${p === null ? (autoplay || busy ? "" : "you") : p.toFixed(2)}`.trim();
+  s.className = (p === null && (autoplay || busy) ? "forced" : "") + (hit ? " bad" : "");
+  $("log").prepend(s);
+  while ($("log").children.length > 24) $("log").lastChild.remove();
+}
+
+let autoplay = false, busy = false;
+async function oneGutsyStep() {
+  if (G.over || busy) return false;
+  busy = true; syncButtons();
+  try {
+    const plan = planMoves(), dirs = Object.keys(plan.offered);
+    let dir, p = null;
+    if (dirs.length === 1) {            // forced: no real choice, keep moving without asking
+      dir = dirs[0];
+      showDecision(plan, null);
+    } else {
+      const a = await gutsyMove(plan.offered);
+      dir = a.choice; p = a.probabilities[dir];
+      showDecision(plan, a);
+      G.decisions++;
+    }
+    const hit = applyMove(dir);
+    logMove(dir, p, hit);
+    draw(); $("err").textContent = "";
+    return true;
+  } catch (e) {
+    autoplay = false;
+    $("err").innerHTML = e instanceof TypeError
+      ? "Couldn't reach gutsy. Run <code>gutsy-inference serve --cors</code>, then try again."
+      : "gutsy returned an error: " + e.message.replace(/</g, "&lt;");
+    checkGutsy();
+    return false;
+  } finally { busy = false; syncButtons(); }
+}
+async function runAutoplay() {
+  while (autoplay && !G.over) {
+    const t0 = performance.now();
+    if (!await oneGutsyStep()) break;
+    const wait = 160 - (performance.now() - t0);   // keep moves visible when gutsy is very fast
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  }
+  autoplay = false; syncButtons();
+}
+function syncButtons() {
+  $("auto").textContent = autoplay ? "Pause" : "Start autoplay";
+  $("auto").disabled = G.over;
+  $("step").disabled = G.over || busy || autoplay;
+}
+
+$("auto").addEventListener("click", () => {
+  autoplay = !autoplay; syncButtons();
+  if (autoplay && !busy) runAutoplay();
+});
+$("step").addEventListener("click", oneGutsyStep);
+$("reset").addEventListener("click", () => {
+  autoplay = false; newGame(); $("overlay").classList.remove("on"); $("log").innerHTML = "";
+  $("options").innerHTML = '<p class="empty">Press Start autoplay. Each turn the legal moves are sent to gutsy as a choice question.</p>';
+  draw(); syncButtons();
+});
+document.addEventListener("keydown", e => {
+  const d = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+  if (!d || autoplay || busy || G.over) return;
+  e.preventDefault();
+  const hit = applyMove(d);
+  if (hit !== null) { logMove(d, null, hit); draw(); }
+});
+setInterval(() => { if (G.flash > 0) draw(); }, 40);
+
+newGame(); draw(); syncButtons(); checkGutsy();
+</script>
+</body>
+</html>
